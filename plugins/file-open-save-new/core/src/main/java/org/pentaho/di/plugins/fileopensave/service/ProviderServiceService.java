@@ -56,15 +56,17 @@ public class ProviderServiceService implements ProviderServiceInterface, Service
     RecentFileProvider recentProvider = new RecentFileProvider();
     VFSFileProvider vfsProvider = new VFSFileProvider();
 
-    ConnectionManager.getInstance().setMetastoreSupplier( () -> {
-
-      try {
-        return MetaStoreConst.openLocalPentahoMetaStore();
-      } catch ( Exception e ) {
-        // Error getting metastore
-        throw new RuntimeException( e );
-      }
-    } );
+    // This happens upon creation of the file open dialog, which is after the ConnectionFolderProvider has initialized
+    // the MetastoreSupplier to use the metastoreLocator.
+    //ConnectionManager.getInstance().setMetastoreSupplier( () -> {
+    //
+    //  try {
+    //    return MetaStoreConst.openLocalPentahoMetaStore();
+    //  } catch ( Exception e ) {
+    //    // Error getting metastore
+    //    throw new RuntimeException( e );
+    //  }
+    //} );
 
     List<FileProvider> fileProviders = new ArrayList<>();
     fileProviders.addAll( Arrays.asList( recentProvider, localProvider, repoProvider, vfsProvider ) );

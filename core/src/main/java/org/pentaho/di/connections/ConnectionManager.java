@@ -35,6 +35,8 @@ import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import org.pentaho.di.core.logging.LogChannel;
+import org.pentaho.di.metastore.MetaStoreConst;
 
 import static org.pentaho.metastore.util.PentahoDefaults.NAMESPACE;
 
@@ -44,6 +46,10 @@ import static org.pentaho.metastore.util.PentahoDefaults.NAMESPACE;
  * Created by bmorrise on 2/3/19.
  */
 public class ConnectionManager {
+
+  // These should all be read from a config file, and most should probably be encrypted
+  public static final String METASTORE_CONNECTION_NAME = "metastore";
+  public static final String METASTORE_BUCKET_NAME = "metastore";
 
   private static final ConnectionManager instance = new ConnectionManager();
 
@@ -185,7 +191,17 @@ public class ConnectionManager {
    * @return A boolean signifying the success of the save operation
    */
   public <T extends ConnectionDetails> boolean save( T connectionDetails ) {
-    return save( metaStoreSupplier.get(), connectionDetails );
+    if ( METASTORE_CONNECTION_NAME.equals(connectionDetails.getName()) ) {
+      try {
+        IMetaStore metaStore = MetaStoreConst.openLocalPentahoMetaStore( false );
+        return save( metaStore, connectionDetails );
+      } catch ( MetaStoreException e ) {
+        LogChannel.GENERAL.logError( "Could not load Metastore.", e );
+        return false;
+      }
+    } else {
+      return save( metaStoreSupplier.get(), connectionDetails );
+    }
   }
 
   /**
@@ -390,6 +406,9 @@ public class ConnectionManager {
    * @return The named connection details
    */
   public ConnectionDetails getConnectionDetails( IMetaStore metaStore, String key, String name ) {
+    if ( METASTORE_CONNECTION_NAME.equals(name) ) {
+      return getMetaStoreConnectionDetails();
+    }
     ConnectionProvider<? extends ConnectionDetails> connectionProvider = getConnectionProvider( key );
     if ( connectionProvider != null ) {
       Class<? extends ConnectionDetails> clazz = connectionProvider.getClassType();
@@ -406,6 +425,9 @@ public class ConnectionManager {
    * @return The named connection details
    */
   public ConnectionDetails getConnectionDetails( String key, String name ) {
+    if ( METASTORE_CONNECTION_NAME.equals(name) ) {
+      return getMetaStoreConnectionDetails();
+    }
     if ( metaStoreSupplier == null || metaStoreSupplier.get() == null ) {
       return null;
     }
@@ -419,6 +441,11 @@ public class ConnectionManager {
    * @return The named connection details
    */
   public ConnectionDetails getConnectionDetails( String name ) {
+    // This is called pretty early in startup *well* before the event listeners set up the metastore provider.
+    // We need to know whether the requested connection is the one for the metastore.
+    if ( METASTORE_CONNECTION_NAME.equals(name) ) {
+      return getMetaStoreConnectionDetails();
+    }
     if ( metaStoreSupplier == null || metaStoreSupplier.get() == null ) {
       return null;
     }
@@ -433,6 +460,9 @@ public class ConnectionManager {
    * @return The named connection details
    */
   public ConnectionDetails getConnectionDetails( IMetaStore metaStore, String name ) {
+    if ( METASTORE_CONNECTION_NAME.equals(name) ) {
+      return getMetaStoreConnectionDetails();
+    }
     List<ConnectionProvider<? extends ConnectionDetails>> providers =
       Collections.list( connectionProviders.elements() );
     for ( ConnectionProvider<? extends ConnectionDetails> provider : providers ) {
@@ -442,6 +472,28 @@ public class ConnectionManager {
         return connectionDetails;
       }
     }
+    return null;
+  }
+
+  public ConnectionDetails getMetaStoreConnectionDetails() {
+    IMetaStore metaStore;
+    try {
+      metaStore = MetaStoreConst.openLocalPentahoMetaStore( false );
+    } catch ( MetaStoreException e ) {
+      LogChannel.GENERAL.logError( "Could not load Metastore.", e );
+      return null;
+    }
+
+    List<ConnectionProvider<? extends ConnectionDetails>> providers =
+      Collections.list( connectionProviders.elements() );
+    for ( ConnectionProvider<? extends ConnectionDetails> provider : providers ) {
+      ConnectionDetails connectionDetails =
+        loadElement( getMetaStoreFactory( metaStore, provider.getClassType() ), METASTORE_CONNECTION_NAME );
+      if ( connectionDetails != null ) {
+        return connectionDetails;
+      }
+    }
+
     return null;
   }
 

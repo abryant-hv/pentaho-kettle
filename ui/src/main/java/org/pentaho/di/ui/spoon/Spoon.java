@@ -364,6 +364,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.Objects;
+import org.pentaho.di.core.osgi.api.MetastoreLocatorOsgi;
 
 /**
  * This class handles the main window of the Spoon graphical transformation editor.
@@ -2141,7 +2142,27 @@ public class Spoon extends ApplicationWindow implements AddUndoPositionInterface
         // CTRL-F5 : metastore explorer
         //
         if ( e.keyCode == SWT.F5 && ( e.stateMask & SWT.CONTROL ) != 0 ) {
-          new MetaStoreExplorerDialog( shell, metaStore ).open();
+          try {
+            DelegatingMetaStore met = new DelegatingMetaStore();
+            for (IMetaStore i : metaStore.getMetaStoreList()) {
+              met.addMetaStore(i);
+            }
+            AbstractMeta am = getActiveAbstractMeta();
+            if ( am != null ) {
+              MetastoreLocatorOsgi ml = am.getMetastoreLocatorOsgi();
+              if ( ml != null ) {
+                IMetaStore vfsms = ml.getMetastore();
+                if ( vfsms != null ) {
+                  met.addMetaStore(vfsms);
+                }
+              }
+            }
+            new MetaStoreExplorerDialog( shell, met ).open();
+          } catch ( Exception ex ) {
+            new ErrorDialog(
+              shell, BaseMessages.getString( PKG, "Spoon.Dialog.ErrorWritingSharedObjects.Title" ), BaseMessages
+                .getString( PKG, "Spoon.Dialog.ErrorWritingSharedObjects.Message" ), ex );
+          }
         }
       }
     } );

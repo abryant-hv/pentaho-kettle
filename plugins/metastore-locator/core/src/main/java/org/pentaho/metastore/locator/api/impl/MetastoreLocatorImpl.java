@@ -33,6 +33,12 @@ import org.slf4j.LoggerFactory;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import org.apache.commons.vfs2.FileObject;
+import org.pentaho.di.connections.ConnectionDetails;
+import org.pentaho.di.connections.ConnectionManager;
+import org.pentaho.di.core.exception.KettleFileException;
+import org.pentaho.di.core.osgi.api.DirectFileSystemAccessOsgi;
+import org.pentaho.di.metastore.XmlVfsMetaStore;
 
 /**
  * Created by tkafalas on 6/19/2017
@@ -42,6 +48,8 @@ public class MetastoreLocatorImpl implements MetastoreLocator, MetastoreLocatorO
 
   private static Map<String, MetastoreProvider> providerMap = new ConcurrentHashMap<>();
   private Logger logger = LoggerFactory.getLogger( MetastoreLocatorImpl.class );
+
+  private XmlVfsMetaStore xmlVfsMetaStore;
 
   // Returns the exact metastore defined by the key
   @Override
@@ -68,53 +76,78 @@ public class MetastoreLocatorImpl implements MetastoreLocator, MetastoreLocatorO
     return getMetastore( null );
   }
 
-  @Override
-  public IMetaStore getMetastore( String providerKey ) {
-    IMetaStore metaStore = getExplicitMetastore( MetastoreLocator.REPOSITORY_PROVIDER_KEY );
-    if ( metaStore == null ) {
-      metaStore = getExplicitMetastore( MetastoreLocator.LOCAL_PROVIDER_KEY );
+  private synchronized XmlVfsMetaStore getXmlVfsMetaStore() {
+    if ( xmlVfsMetaStore == null ) {
+      ConnectionDetails metastoreConn = ConnectionManager.getInstance().getMetaStoreConnectionDetails();
+      if ( metastoreConn != null ) {
+        try {
+          for ( DirectFileSystemAccessOsgi fsAccess : PluginServiceLoader.loadServices( DirectFileSystemAccessOsgi.class ) ) {
+            FileObject rootFile = fsAccess.getFile(metastoreConn, "/");
+            if ( rootFile != null ) {
+              xmlVfsMetaStore = new XmlVfsMetaStore(rootFile);
+              return xmlVfsMetaStore;
+            }
+          }
+          } catch ( KettleFileException | KettlePluginException | MetaStoreException e ) {
+            LogChannel.GENERAL.logError( "Could not load Metastore.", e );
+          }
+        }
+      }
+      return xmlVfsMetaStore;
     }
-    if ( metaStore == null && providerKey != null ) {
-      metaStore = getExplicitMetastore( providerKey );
+
+    @Override
+    public IMetaStore getMetastore( String providerKey ){
+      IMetaStore metaStore = getExplicitMetastore( MetastoreLocator.REPOSITORY_PROVIDER_KEY );
+      if ( metaStore == null ) {
+        metaStore = getXmlVfsMetaStore();
+      }
+      if ( metaStore == null ) {
+        metaStore = getExplicitMetastore( MetastoreLocator.LOCAL_PROVIDER_KEY );
+      }
+      if ( metaStore == null && providerKey != null ) {
+        metaStore = getExplicitMetastore( providerKey );
+      }
+      if ( metaStore == null ) {
+        try {
+          metaStore = MetaStoreConst.openLocalPentahoMetaStore( false );
+        } catch ( MetaStoreException e ) {
+          LogChannel.GENERAL.logError( "Could not load Metastore.", e );
+          return null;
+        }
+      }
+
+      return metaStore;
     }
-    if ( metaStore == null ) {
+
+    @Override
+    public String setEmbeddedMetastore( final IMetaStore metastore ){
+      MetastoreProvider metastoreProvider = new MetastoreProvider() {
+        @Override
+        public IMetaStore getMetastore() {
+          return metastore;
+        }
+
+        @Override
+        public String getProviderType() {
+          return null;
+        }
+      };
       try {
-        metaStore = MetaStoreConst.openLocalPentahoMetaStore( false );
+        String providerKey = metastore.getName() == null ? UUID.randomUUID().toString() : metastore.getName();
+        if ( getExplicitMetastore( providerKey ) == null ) {
+          providerMap.put( providerKey, metastoreProvider );
+        }
+        return providerKey;
       } catch ( MetaStoreException e ) {
-        LogChannel.GENERAL.logError( "Could not load Metastore.", e );
-        return null;
+        throw new IllegalStateException( e );
       }
+
     }
 
-    return metaStore;
-  }
-
-  @Override
-  public String setEmbeddedMetastore( final IMetaStore metastore ) {
-    MetastoreProvider metastoreProvider = new MetastoreProvider() {
-      @Override public IMetaStore getMetastore() {
-        return metastore;
-      }
-
-      @Override public String getProviderType() {
-        return null;
-      }
-    };
-    try {
-      String providerKey = metastore.getName() == null ? UUID.randomUUID().toString() : metastore.getName();
-      if ( getExplicitMetastore( providerKey ) == null ) {
-        providerMap.put( providerKey, metastoreProvider );
-      }
-      return providerKey;
-    } catch ( MetaStoreException e ) {
-      throw new IllegalStateException( e );
+    @Override
+    public void disposeMetastoreProvider( String providerKey ){
+      providerMap.remove( providerKey );
     }
 
   }
-
-  @Override
-  public void disposeMetastoreProvider( String providerKey ) {
-    providerMap.remove( providerKey );
-  }
-
-}

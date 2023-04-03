@@ -123,7 +123,7 @@ public class KettleFileRepositoryMeta extends BaseRepositoryMeta implements Repo
    * @return the baseDirectory
    */
   public String getBaseDirectory() {
-    return baseDirectory;
+    return baseDirectory != null ? baseDirectory : System.getProperty("user.dir");
   }
 
   /**
