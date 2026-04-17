@@ -25,8 +25,10 @@ import org.pentaho.di.core.logging.LogChannelInterface;
 import org.pentaho.di.core.variables.VariableSpace;
 import org.pentaho.di.engine.configuration.api.RunConfiguration;
 import org.pentaho.di.engine.configuration.api.RunConfigurationExecutor;
+import org.pentaho.di.engine.configuration.api.RunConfigurationService;
 import org.pentaho.di.engine.configuration.impl.EmbeddedRunConfigurationManager;
 import org.pentaho.di.engine.configuration.impl.RunConfigurationManager;
+import org.pentaho.di.engine.configuration.impl.RunConfigurationProviderFactoryManagerImpl;
 import org.pentaho.di.i18n.BaseMessages;
 import org.pentaho.di.repository.Repository;
 import org.pentaho.di.trans.TransMeta;
@@ -43,9 +45,7 @@ public class RunConfigurationRunExtensionPoint implements ExtensionPointInterfac
 
   private static Class<?> PKG = RunConfigurationRunExtensionPoint.class;
   // basically exists for testing.
-  private Function<Bowl, RunConfigurationManager> rcmProvider = bowl ->
-    RunConfigurationManager.getInstance( () -> bowl != null ? bowl.getMetastore() :
-                                         DefaultBowl.getInstance().getMetastore() );
+  private Function<Bowl, RunConfigurationManager> rcmProvider;
 
   @Override public void callExtensionPoint( LogChannelInterface logChannelInterface, Object o ) throws KettleException {
     ExecutionConfiguration executionConfiguration = (ExecutionConfiguration) ( (Object[]) o )[ 0 ];
@@ -54,7 +54,7 @@ public class RunConfigurationRunExtensionPoint implements ExtensionPointInterfac
     Repository repository = (Repository) ( (Object[]) o )[ 3 ];
     EmbeddedMetaStore embeddedMetaStore = meta.getEmbeddedMetaStore();
 
-    RunConfigurationManager runConfigurationManager = rcmProvider.apply( meta.getBowl() );
+    RunConfigurationManager runConfigurationManager = getRunConfigurationManager( meta.getBowl() );
     RunConfiguration runConfiguration =
       runConfigurationManager.load( executionConfiguration.getRunConfiguration() );
 
@@ -85,5 +85,16 @@ public class RunConfigurationRunExtensionPoint implements ExtensionPointInterfac
   @VisibleForTesting
   void setRunConfigurationManagerProvider ( Function<Bowl, RunConfigurationManager> provider ) {
     this.rcmProvider = provider;
+  }
+
+  private RunConfigurationManager getRunConfigurationManager( Bowl bowl ) throws KettleException {
+    if ( rcmProvider != null ) {
+      return rcmProvider.apply( bowl );
+    }
+
+    // ensure the factory is initialized so that the managers are registered to the bowl
+    RunConfigurationProviderFactoryManagerImpl.getInstance();
+    Bowl sourceBowl = bowl != null ? bowl : DefaultBowl.getInstance();
+    return (RunConfigurationManager) sourceBowl.getManager( RunConfigurationService.class );
   }
 }

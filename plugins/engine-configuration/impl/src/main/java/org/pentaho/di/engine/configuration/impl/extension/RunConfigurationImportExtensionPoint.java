@@ -22,8 +22,10 @@ import org.pentaho.di.core.extension.ExtensionPointInterface;
 import org.pentaho.di.core.logging.LogChannelInterface;
 import org.pentaho.di.core.util.Utils;
 import org.pentaho.di.engine.configuration.api.RunConfiguration;
+import org.pentaho.di.engine.configuration.api.RunConfigurationService;
 import org.pentaho.di.engine.configuration.impl.EmbeddedRunConfigurationManager;
 import org.pentaho.di.engine.configuration.impl.RunConfigurationManager;
+import org.pentaho.di.engine.configuration.impl.RunConfigurationProviderFactoryManagerImpl;
 import org.pentaho.di.engine.configuration.impl.pentaho.DefaultRunConfiguration;
 import org.pentaho.di.engine.configuration.impl.pentaho.DefaultRunConfigurationProvider;
 import org.pentaho.di.job.JobMeta;
@@ -32,10 +34,10 @@ import org.pentaho.di.job.entry.JobEntryCopy;
 
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.function.Function;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -45,14 +47,21 @@ import java.util.stream.Collectors;
   description = "" )
 public class RunConfigurationImportExtensionPoint implements ExtensionPointInterface {
 
-  private Function<AbstractMeta, RunConfigurationManager> rcmProvider =
-    am -> RunConfigurationManager.getInstance( () -> am.getBowl().getMetastore() );
+  private Function<AbstractMeta, RunConfigurationService> rcsProvider =
+    meta -> {
+      try {
+        RunConfigurationProviderFactoryManagerImpl.getInstance();
+        return meta.getBowl().getManager( RunConfigurationService.class );
+      } catch ( KettleException e ) {
+        throw new IllegalStateException( "Unable to access run configuration manager", e );
+      }
+    };
 
   @Override public void callExtensionPoint( LogChannelInterface logChannelInterface, Object o ) throws KettleException {
     AbstractMeta abstractMeta = (AbstractMeta) o;
 
     final EmbeddedMetaStore embeddedMetaStore = abstractMeta.getEmbeddedMetaStore();
-    RunConfigurationManager runConfigurationManager = getRunConfigurationManager( abstractMeta );
+    RunConfigurationService runConfigurationManager = getRunConfigurationManager( abstractMeta );
 
     RunConfigurationManager embeddedRunConfigurationManager =
       EmbeddedRunConfigurationManager.build( embeddedMetaStore );
@@ -121,10 +130,10 @@ public class RunConfigurationImportExtensionPoint implements ExtensionPointInter
 
   @VisibleForTesting
   void setRunConfigurationManager( RunConfigurationManager runConfigurationManager ) {
-    this.rcmProvider = x -> runConfigurationManager;
+    this.rcsProvider = meta -> runConfigurationManager;
   }
 
-  private RunConfigurationManager getRunConfigurationManager( AbstractMeta meta) {
-    return rcmProvider.apply( meta );
+  private RunConfigurationService getRunConfigurationManager( AbstractMeta meta ) {
+    return rcsProvider.apply( meta );
   }
 }

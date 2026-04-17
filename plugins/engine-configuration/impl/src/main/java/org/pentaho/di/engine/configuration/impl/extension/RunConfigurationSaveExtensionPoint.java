@@ -22,16 +22,18 @@ import org.pentaho.di.core.logging.LogChannelInterface;
 import org.pentaho.di.core.util.StringUtil;
 import org.pentaho.di.core.util.Utils;
 import org.pentaho.di.engine.configuration.api.RunConfiguration;
+import org.pentaho.di.engine.configuration.api.RunConfigurationService;
 import org.pentaho.di.engine.configuration.impl.EmbeddedRunConfigurationManager;
 import org.pentaho.di.engine.configuration.impl.RunConfigurationManager;
+import org.pentaho.di.engine.configuration.impl.RunConfigurationProviderFactoryManagerImpl;
 import org.pentaho.di.engine.configuration.impl.pentaho.DefaultRunConfigurationProvider;
 import org.pentaho.di.job.JobMeta;
 import org.pentaho.di.job.entry.JobEntryCopy;
 import org.pentaho.di.job.entry.JobEntryRunConfigurableInterface;
 
 import java.util.ArrayList;
-import java.util.function.Function;
 import java.util.List;
+import java.util.function.Function;
 
 /**
  * Created by bmorrise on 5/3/17.
@@ -40,8 +42,15 @@ import java.util.List;
   description = "" )
 public class RunConfigurationSaveExtensionPoint implements ExtensionPointInterface {
 
-  private Function<JobMeta, RunConfigurationManager> rcmProvider =
-    jm -> RunConfigurationManager.getInstance( () -> jm.getBowl().getMetastore() );
+  private Function<JobMeta, RunConfigurationService> rcsProvider =
+    meta -> {
+      try {
+        RunConfigurationProviderFactoryManagerImpl.getInstance();
+        return meta.getBowl().getManager( RunConfigurationService.class );
+      } catch ( KettleException e ) {
+        throw new IllegalStateException( "Unable to access run configuration manager", e );
+      }
+    };
 
   @Override public void callExtensionPoint( LogChannelInterface logChannelInterface, Object o ) throws KettleException {
     JobMeta jobMeta = (JobMeta) ( (Object[]) o )[ 0 ];
@@ -91,10 +100,10 @@ public class RunConfigurationSaveExtensionPoint implements ExtensionPointInterfa
 
   @VisibleForTesting
   void setRunConfigurationManager( RunConfigurationManager runConfigurationManager ) {
-    this.rcmProvider = x -> runConfigurationManager;
+    this.rcsProvider = meta -> runConfigurationManager;
   }
 
-  private RunConfigurationManager getRunConfigurationManager( JobMeta meta) {
-    return rcmProvider.apply( meta );
+  private RunConfigurationService getRunConfigurationManager( JobMeta meta ) {
+    return rcsProvider.apply( meta );
   }
 }

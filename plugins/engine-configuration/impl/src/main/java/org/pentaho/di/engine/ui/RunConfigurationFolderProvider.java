@@ -53,7 +53,7 @@ public class RunConfigurationFolderProvider extends TreeFolderProvider {
     String levelName;
     if ( !currentBowl.equals( globalBowl ) ) {
       RunConfigurationDelegate bowlDelegate =
-        RunConfigurationDelegate.getInstance( () -> currentBowl.getMetastore() );
+        getRunConfigurationDelegate( currentBowl );
       for ( RunConfiguration runConfiguration : bowlDelegate.load() ) {
         if ( !filterMatch( runConfiguration.getName(), filter ) ) {
           continue;
@@ -72,7 +72,7 @@ public class RunConfigurationFolderProvider extends TreeFolderProvider {
     }
 
     RunConfigurationDelegate globalDelegate =
-      RunConfigurationDelegate.getInstance( () -> globalBowl.getMetastore() );
+      getRunConfigurationDelegate( globalBowl );
 
     for ( RunConfiguration runConfiguration : globalDelegate.load() ) {
       if ( !filterMatch( runConfiguration.getName(), filter ) ) {
@@ -128,5 +128,13 @@ public class RunConfigurationFolderProvider extends TreeFolderProvider {
   public TreeNode createTreeNode( TreeNode parent, String text, Image image ) {
     TreeNode treeNode = super.createTreeNode( parent, text, image );
     return treeNode;
+  }
+
+  private RunConfigurationDelegate getRunConfigurationDelegate( Bowl bowl ) {
+    try {
+      return RunConfigurationDelegate.getInstance( bowl );
+    } catch ( Exception e ) {
+      throw new IllegalStateException( "Unable to access run configuration delegate", e );
+    }
   }
 }
