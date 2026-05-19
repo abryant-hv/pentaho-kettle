@@ -3537,6 +3537,9 @@ public class JobGraph extends AbstractGraph implements XulEventHandler, Redrawab
             }
             job.getJobMeta().activateParameters();
 
+            // clear caches before beginning execution
+            jobMeta.getBowl().clearCache();
+
             log.logMinimal( BaseMessages.getString( PKG, "JobLog.Log.StartingJob" ) );
             job.start();
             jobGridDelegate.previousNrItems = -1;

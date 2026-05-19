@@ -3993,6 +3993,8 @@ public class TransGraph extends AbstractGraph implements XulEventHandler, Redraw
 
         // Create a new transformation to execution
         //
+        // clear caches before beginning execution
+        transMeta.getBowl().clearCache();
         trans = new Trans( transMeta );
         trans.setSafeModeEnabled( executionConfiguration.isSafeModeEnabled() );
         trans.setPreview( true );
@@ -4252,6 +4254,8 @@ public class TransGraph extends AbstractGraph implements XulEventHandler, Redraw
       @Override
       public void run() {
         try {
+          // clear caches before beginning execution
+          transMeta.getBowl().clearCache();
 
           trans.setInitialLogBufferStartLine();
           trans.prepareExecution( args );

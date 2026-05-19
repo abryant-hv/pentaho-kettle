@@ -256,6 +256,8 @@ public class TransDelegate extends AbstractDelegate implements ITransformer, ISh
     throws KettleException {
     TransMeta transMeta = (TransMeta) element;
 
+    // just load these once. 
+    List<ClusterSchema> clusterSchemas = transMeta.getClusterSchemas();
     // read the steps...
     //
     DataNode stepsNode = rootNode.getNode( NODE_STEPS );
@@ -349,9 +351,9 @@ public class TransDelegate extends AbstractDelegate implements ITransformer, ISh
       // Get the cluster schema name
       String clusterSchemaName = getString( stepNode, PROP_CLUSTER_SCHEMA );
       stepMeta.setClusterSchemaName( clusterSchemaName );
-      if ( clusterSchemaName != null && transMeta.getClusterSchemas() != null ) {
+      if ( clusterSchemaName != null && clusterSchemas != null ) {
         // Get the cluster schema from the given name
-        for ( ClusterSchema clusterSchema : transMeta.getClusterSchemas() ) {
+        for ( ClusterSchema clusterSchema : clusterSchemas ) {
           if ( clusterSchema.getName().equals( clusterSchemaName ) ) {
             stepMeta.setClusterSchema( clusterSchema );
             break;
